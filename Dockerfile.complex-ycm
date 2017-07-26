@@ -1,0 +1,186 @@
+# Complex Dockerfile
+# FROM alpine:latest
+FROM frolvlad/alpine-glibc
+
+MAINTAINER bbxytl <bbxytl@gmail.com>
+
+RUN cd /etc/apk/  \
+	&& mv repositories repositories.bk \
+	&& echo "http://mirrors.ustc.edu.cn/alpine/v3.5/main" > repositories  \
+	&& echo "http://mirrors.ustc.edu.cn/alpine/v3.5/community" >> repositories
+
+RUN apk add --no-cache --update \
+# Install Virtual Soft
+	--virtual \
+	build-deps \
+	build-base \
+	ctags \
+	git \
+	libx11-dev \
+	libxpm-dev \
+	libxt-dev \
+	make \
+	ncurses-dev \
+	python \
+	python-dev \
+	bash \
+# Build Vim
+	&& cd /tmp \
+	&& git clone https://github.com/vim/vim \
+	&& cd /tmp/vim \
+	&& ./configure \
+	--disable-gui \
+	--disable-netbeans \
+	--enable-multibyte \
+	--enable-pythoninterp \
+	--prefix=/usr \
+	--with-features=big \
+	--with-python-config-dir=/usr/lib/python2.7/config \
+	&& make install \
+# Del Virtual Soft
+	&& apk del build-deps \
+# Install Soft for Vim
+	&& apk add \
+	libice \
+	libsm \
+	libx11 \
+	libxt \
+	ncurses \
+	python \
+	bash \
+
+# Cleanup
+	&& rm -rf \
+	/tmp/*  \
+	/var/cache/* \
+	/var/log/* \
+	/var/tmp/* \
+	&& mkdir /var/cache/apk
+
+# User config
+ENV UID="1000" \
+	UNAME="developer" \
+	GID="1000" \
+	GNAME="developer" \
+	SHELL="/bin/bash" \
+	UHOME="/home/developer" \
+	UVIMHOME="/home/developer/.vim" \
+	UDOTFILES="/home/developer/mydotfiles/b-dotfiles"
+
+# User
+RUN apk add --no-cache --update sudo \
+# Create HOME dir
+	&& mkdir -p "${UHOME}" \
+	&& chown "${UID}":"${GID}" "${UHOME}" \
+# Create user
+	&& echo "${UNAME}:x:${UID}:${GID}:${UNAME},,,:${UHOME}:${SHELL}" \
+	>> /etc/passwd \
+	&& echo "${UNAME}::17032:0:99999:7:::" \
+	>> /etc/shadow \
+# No password sudo
+	&& echo "${UNAME} ALL=(ALL) NOPASSWD: ALL" \
+	> "/etc/sudoers.d/${UNAME}" \
+	&& chmod 0440 "/etc/sudoers.d/${UNAME}" \
+# Create group
+	&& echo "${GNAME}:x:${GID}:${UNAME}" \
+	>> /etc/group
+
+# Install Need Soft
+RUN apk add  --no-cache --update \
+	curl \
+	git  \
+	zsh  \
+# Cleanup
+	&& rm -rf \
+	/tmp/*  \
+	/var/cache/* \
+	/var/log/* \
+	/var/tmp/* \
+	&& mkdir /var/cache/apk
+
+USER $UNAME
+# Shell And Vim Config
+RUN cd $UHOME \
+# Zsh Config. oh-my-zsh
+	&& sh -c "$(curl -fsSL https://raw.github.com/robbyrussell/oh-my-zsh/master/tools/install.sh)" \
+# Clone Dotfiles
+	&& mkdir -p $UHOME/mydotfiles \
+	&& cd $UHOME/mydotfiles \
+	&& git clone --depth 1 https://github.com/bbxytl/b-dotfiles \
+# Shell and Other config
+	&& cd $UDOTFILES/b-shell  \
+	&& sh install-shell-for-docker.sh  \
+	&& cd $UDOTFILES/others  \
+	&& sh install-others-for-docker.sh  \
+# Vim plugins deps
+	&& mkdir -p \
+		$UVIMHOME/bundle \
+		$UVIMHOME/vimbackup \
+		$UVIMHOME/vimswap \
+		$UVIMHOME/vimundo \
+		$UVIMHOME/runtime \
+	&& cd $UDOTFILES/b-vim/vim.config  \
+	&& sh install-vim-for-docker.sh  --complex \
+	&& cd $UVIMHOME/bundle/ \
+# Get All Need Clone from Github and Clone Then to bundle
+	&& grep "^Bundle [',\"]\S*/" ~/.vimrc.bundles| sed "s/Bundle [',\"]/http:\/\/github.com\//g" | sed "s/[',\"]//g" | while read line;do \
+			dirname=`echo ${line##*/} | sed 's/ //g'`; \
+			echo "git clone --depth 1 $line  $UVIMHOME/bundle/$dirname"; \
+			git clone --depth 1 $line  $UVIMHOME/bundle/$dirname; \
+		done \
+# Clone YouCompleteMe Submodule
+	&& cd $UVIMHOME/bundle/YouCompleteMe \
+	&& git submodule update --init --recursive \
+# Clone Vundle Plugins
+	&& vim +BundleInstall +qall -c q \
+# Config Second to replace modify
+	&& cd $UDOTFILES/b-vim/vim.config  \
+	&& sh install-vim-for-docker.sh  --complex \
+
+# Cleanup
+	&& sudo rm -rf \
+		/tmp/*  \
+		/var/cache/* \
+		/var/log/* \
+		/var/tmp/* \
+	&& sudo mkdir /var/cache/apk
+
+USER root
+RUN apk add  --no-cache --update \
+		ncurses-terminfo \
+		llvm \
+		clang  \
+		clang-libs \
+		clang-dev  \
+		boost \
+		boost-dev \
+		python-dev \
+		gcc  \
+		g++  \
+		make \
+		cmake \
+	&& cd $UVIMHOME/bundle/YouCompleteMe \
+	&& python ./install.py --clang-completer --system-libclang --system-boost \
+
+# Del No Need Soft
+	&& apk del \
+		make  \
+		cmake  \
+		llvm  \
+		clang  \
+		python-dev \
+
+# Cleanup
+	&& rm -rf \
+	/tmp/*  \
+	/var/cache/* \
+	/var/log/* \
+	/var/tmp/* \
+	&& mkdir /var/cache/apk
+
+COPY docker-run /usr/local/bin/
+
+USER $UNAME
+ENV TERM=xterm-256color
+
+ENTRYPOINT ["sh", "/usr/local/bin/docker-run"]
