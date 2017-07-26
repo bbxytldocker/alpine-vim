@@ -124,7 +124,7 @@ RUN cd $UHOME \
 	&& sh install-vim-for-docker.sh  \
 	&& cd $UVIMHOME/bundle/ \
 # Get All Need Clone from Github and Clone Then to bundle
-	&& grep "^Bundle [',\"]\S*/" ~/.vimrc.bundles| sed "s/Bundle [',\"]/http:\/\/github.com\//g" | sed "s/[',\"]//g" | while read line;do \
+	&& grep "^Bundle [',\"]\S*/" ~/.vimrc.bundles| sed "s/Bundle [',\"]/https:\/\/github.com\//g" | sed "s/[',\"]//g" | while read line;do \
 			dirname=`echo ${line##*/} | sed 's/ //g'`; \
 			echo "git clone --depth 1 $line  $UVIMHOME/bundle/$dirname"; \
 			git clone --depth 1 $line  $UVIMHOME/bundle/$dirname; \
