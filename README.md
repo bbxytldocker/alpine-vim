@@ -1,3 +1,5 @@
+基于docker 的vim.
+
 ## Dockerfile 说明
 本 Dockerfile 对应的镜像为: https://hub.docker.com/r/bbxytl/alpine-vim
 
@@ -20,7 +22,7 @@ https://github.com/bbxytldocker/alpine-vim
 ## 镜像使用
 ### 1. 从容器启动
 ```
-docker run docker run -it --name my-vim -v ~/data:/home/developer/data bbxytl/alpine-vim
+docker run -it --name my-vim -v ~/data:/home/developer/data bbxytl/alpine-vim
 ```
 
 ### 2. 启动容器
